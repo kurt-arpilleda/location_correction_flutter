@@ -434,7 +434,6 @@ class _SoftwareWebViewScreenState extends State<SoftwareWebViewScreen> with Widg
       );
 
       if (result != null && result is String && result.isNotEmpty) {
-        // Inject the scanned code into the focused input field
         await _injectBarcodeIntoWebView(result);
       }
     } catch (e) {
@@ -446,6 +445,105 @@ class _SoftwareWebViewScreenState extends State<SoftwareWebViewScreen> with Widg
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
       );
+    }
+  }
+
+  Future<void> _openBarcodeScannerForLocation() async {
+    try {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const BarcodeScannerScreen(),
+        ),
+      );
+
+      if (result != null && result is String && result.isNotEmpty) {
+        await _injectBarcodeIntoLocation(result);
+      }
+    } catch (e) {
+      print('Error opening barcode scanner for location: $e');
+      Fluttertoast.showToast(
+        msg: _currentLanguageFlag == 2
+            ? "バーコードスキャナーを開けませんでした"
+            : "Could not open barcode scanner",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+      );
+    }
+  }
+
+  Future<void> _injectBarcodeIntoLocation(String barcode) async {
+    if (webViewController != null) {
+      try {
+        String jsCode = '''
+    async function injectBarcodeLocation() {
+      const targetInput = document.getElementById('location');
+      if (!targetInput) return 'no_input_found';
+
+      targetInput.focus();
+      targetInput.value = '$barcode';
+
+      targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const enterEvent = (type) => new KeyboardEvent(type, {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true
+      });
+
+      targetInput.dispatchEvent(enterEvent('keydown'));
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      targetInput.dispatchEvent(enterEvent('keypress'));
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      targetInput.dispatchEvent(enterEvent('keyup'));
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      if (targetInput.form) {
+        targetInput.form.dispatchEvent(new Event('submit', { bubbles: true }));
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+      targetInput.blur();
+
+      return 'success';
+    }
+
+    injectBarcodeLocation().then(result => result);
+    ''';
+
+        final result = await webViewController!.evaluateJavascript(source: jsCode);
+        print('Barcode location injection result: $result');
+
+        Fluttertoast.showToast(
+          msg: _currentLanguageFlag == 2
+              ? "バーコードが入力されました: $barcode"
+              : "Barcode entered: $barcode",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+        );
+      } catch (e) {
+        print('Error injecting barcode into location: $e');
+        Fluttertoast.showToast(
+          msg: _currentLanguageFlag == 2
+              ? "バーコードの入力に失敗しました"
+              : "Failed to enter barcode",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+        );
+      }
     }
   }
 
@@ -542,6 +640,8 @@ class _SoftwareWebViewScreenState extends State<SoftwareWebViewScreen> with Widg
 (function() {
   let button;
   let container;
+  let locationButton;
+  let locationContainer;
 
   function isVisible(elem) {
     if (!elem || elem.offsetParent === null) return false;
@@ -556,66 +656,116 @@ class _SoftwareWebViewScreenState extends State<SoftwareWebViewScreen> with Widg
 
   function updateBarcodeScannerButton() {
     const input = document.getElementById('lotNumberField');
-    if (!input) return;
+    if (input) {
+      const shouldShow = isVisible(input);
 
-    const shouldShow = isVisible(input);
+      if (shouldShow && !input.dataset.hasBarcodeButton) {
+        input.dataset.hasBarcodeButton = 'true';
 
-    // If it should be visible and not already added
-    if (shouldShow && !input.dataset.hasBarcodeButton) {
-      input.dataset.hasBarcodeButton = 'true';
+        container = document.createElement('div');
+        container.style.position = 'relative';
+        container.style.display = 'inline-block';
+        container.style.width = '100%';
 
-      container = document.createElement('div');
-      container.style.position = 'relative';
-      container.style.display = 'inline-block';
-      container.style.width = '100%';
+        input.parentNode.insertBefore(container, input);
+        container.appendChild(input);
 
-      input.parentNode.insertBefore(container, input);
-      container.appendChild(input);
+        button = document.createElement('div');
+        button.innerHTML = '𝄃𝄂𝄂𝄀𝄁𝄃';
+        button.style.cssText = \`
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 9999;
+          background: #3452B4;
+          color: white;
+          padding: 0 4px;
+          border-radius: 4px;
+          font-size: 10px;
+          cursor: pointer;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          font-family: Arial, sans-serif;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        \`;
 
-      button = document.createElement('div');
-      button.innerHTML = '𝄃𝄂𝄂𝄀𝄁𝄃';
-      button.style.cssText = \`
-        position: absolute;
-        right: 8px;
-        top: 50%;
-        transform: translateY(-50%);
-        z-index: 9999;
-        background: #3452B4;
-        color: white;
-        padding: 0 4px;
-        border-radius: 4px;
-        font-size: 10px;
-        cursor: pointer;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        font-family: Arial, sans-serif;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      \`;
+        button.onclick = function(e) {
+          e.stopPropagation();
+          window.flutter_inappwebview.callHandler('openBarcodeScanner');
+        };
 
-      button.onclick = function(e) {
-        e.stopPropagation();
-        window.flutter_inappwebview.callHandler('openBarcodeScanner');
-      };
+        container.appendChild(button);
+      }
 
-      container.appendChild(button);
+      if (!shouldShow && button && container && container.parentNode) {
+        input.removeAttribute('data-has-barcode-button');
+        container.parentNode.insertBefore(input, container);
+        container.remove();
+        button = null;
+        container = null;
+      }
     }
 
-    // If the input is now hidden or behind modal, remove the button
-    if (!shouldShow && button && container && container.parentNode) {
-      input.removeAttribute('data-has-barcode-button');
-      container.parentNode.insertBefore(input, container);
-      container.remove();
-      button = null;
-      container = null;
+    const locationInput = document.getElementById('location');
+    if (locationInput) {
+      const shouldShowLocation = isVisible(locationInput);
+
+      if (shouldShowLocation && !locationInput.dataset.hasBarcodeButton) {
+        locationInput.dataset.hasBarcodeButton = 'true';
+
+        locationContainer = document.createElement('div');
+        locationContainer.style.position = 'relative';
+        locationContainer.style.display = 'inline-block';
+        locationContainer.style.width = '100%';
+
+        locationInput.parentNode.insertBefore(locationContainer, locationInput);
+        locationContainer.appendChild(locationInput);
+
+        locationButton = document.createElement('div');
+        locationButton.innerHTML = '𝄃𝄂𝄂𝄀𝄁𝄃';
+        locationButton.style.cssText = \`
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 9999;
+          background: #3452B4;
+          color: white;
+          padding: 0 4px;
+          border-radius: 4px;
+          font-size: 10px;
+          cursor: pointer;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          font-family: Arial, sans-serif;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        \`;
+
+        locationButton.onclick = function(e) {
+          e.stopPropagation();
+          window.flutter_inappwebview.callHandler('openBarcodeScannerLocation');
+        };
+
+        locationContainer.appendChild(locationButton);
+      }
+
+      if (!shouldShowLocation && locationButton && locationContainer && locationContainer.parentNode) {
+        locationInput.removeAttribute('data-has-barcode-button');
+        locationContainer.parentNode.insertBefore(locationInput, locationContainer);
+        locationContainer.remove();
+        locationButton = null;
+        locationContainer = null;
+      }
     }
   }
 
-  // Initial check
   updateBarcodeScannerButton();
 
-  // Observe DOM for changes (e.g., modal open/close)
   const observer = new MutationObserver(function() {
     updateBarcodeScannerButton();
   });
@@ -627,7 +777,6 @@ class _SoftwareWebViewScreenState extends State<SoftwareWebViewScreen> with Widg
     attributeFilter: ['style', 'class']
   });
 
-  // Also check every second in case changes aren't caught by observer
   setInterval(updateBarcodeScannerButton, 1000);
 })();
 ''';
@@ -1197,11 +1346,17 @@ class _SoftwareWebViewScreenState extends State<SoftwareWebViewScreen> with Widg
                   onWebViewCreated: (controller) {
                     webViewController = controller;
 
-                    // Add handler for barcode scanner
                     controller.addJavaScriptHandler(
                       handlerName: 'openBarcodeScanner',
                       callback: (args) {
                         _openBarcodeScanner();
+                      },
+                    );
+
+                    controller.addJavaScriptHandler(
+                      handlerName: 'openBarcodeScannerLocation',
+                      callback: (args) {
+                        _openBarcodeScannerForLocation();
                       },
                     );
                   },
