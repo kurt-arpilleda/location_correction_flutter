@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   static const List<String> apiUrls = [
     "https://192.168.254.163/",
-    "https://126.209.7.246/"
+    "https://113.19.11.218/"
   ];
 
   static const Duration requestTimeout = Duration(seconds: 2);
