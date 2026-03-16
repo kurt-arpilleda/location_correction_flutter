@@ -53,6 +53,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
     ]);
     _loadPreferences();
     _startListening();
